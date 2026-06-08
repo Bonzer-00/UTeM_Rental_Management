@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "590768882543",
+    "project_id": "utem-smart-rental",
+    "storage_bucket": "utem-smart-rental.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:590768882543:android:05a2380f57820fa6e45e9a",
+        "android_client_info": {
+          "package_name": "com.example.utem_smart_rental"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYF-88_qgKLbqtWW8dyYgrf123U8BBf24"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
