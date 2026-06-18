@@ -5,7 +5,7 @@ import '../../utils/constants.dart';
 import '../auth/login_screen.dart';
 import '../../models/property_model.dart';
 import '../student/property_details_screen.dart';
-import '../shared/notification_bell.dart';
+import '../shared/notification_bell.dart'; 
 
 class AdminHome extends StatelessWidget {
   const AdminHome({super.key});
@@ -15,7 +15,6 @@ class AdminHome extends StatelessWidget {
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
-  // Helper function to dynamically fetch the Owner's Name for each property
   Future<String> _getOwnerName(String homeownerId) async {
     try {
       DocumentSnapshot doc = await FirebaseFirestore.instance.collection('users').doc(homeownerId).get();
@@ -28,7 +27,6 @@ class AdminHome extends StatelessWidget {
     return 'Unknown Owner';
   }
 
-  // Safe Deletion Confirmation Dialog
   void _confirmDelete(BuildContext context, String collection, String docId, String itemName) {
     showDialog(
       context: context,
@@ -67,10 +65,83 @@ class AdminHome extends StatelessWidget {
     );
   }
 
+  // --- NEW: SYSTEM OVERVIEW GRID (Tab 1) --- [13]
+  Widget _buildOverviewTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(defaultPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("System Overview", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
+          const SizedBox(height: 16),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.3,
+            children: [
+              _buildOverviewCard("Total Students", "users", "role", "Student", Icons.school, Colors.blue),
+              _buildOverviewCard("Total Homeowners", "users", "role", "Homeowner", Icons.real_estate_agent, Colors.green),
+              _buildOverviewCard("Total Properties", "properties", null, null, Icons.home_work, Colors.purple),
+              _buildOverviewCard("Active Rentals", "bookings", "status", "signed", Icons.verified, Colors.orange),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  // Helper Card Builder with real-time Stream listener
+  Widget _buildOverviewCard(String title, String collection, String? field, String? value, IconData icon, Color color) {
+    Query query = FirebaseFirestore.instance.collection(collection);
+    if (field != null && value != null) {
+      query = query.where(field, isEqualTo: value);
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardWhite,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 2))],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                    child: Icon(icon, color: color, size: 20),
+                  ),
+                  Text(
+                    count.toString(),
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textDark),
+                  ),
+                ],
+              ),
+              Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textGrey)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3, // <--- CHANGED: Increased to 3 Tabs (Students, Homeowners, Properties)
+      length: 4, // <--- CHANGED: Set to 4 Tabs [13]
       child: Scaffold(
         backgroundColor: backgroundLight,
         appBar: AppBar(
@@ -78,7 +149,7 @@ class AdminHome extends StatelessWidget {
           elevation: 1,
           title: const Text("Admin Panel", style: TextStyle(color: textDark, fontWeight: FontWeight.bold)),
           actions:[
-            const NotificationBell(), // <--- NEW: Added the Bell! Admins can now see alerts.
+            const NotificationBell(), 
             IconButton(
               icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
               tooltip: "Logout",
@@ -92,27 +163,27 @@ class AdminHome extends StatelessWidget {
             indicatorColor: primaryBlue,
             indicatorWeight: 3,
             tabs:[
-              Tab(icon: Icon(Icons.school_outlined), text: "Students"), // Tab 1
-              Tab(icon: Icon(Icons.real_estate_agent_outlined), text: "Homeowners"), // Tab 2
-              Tab(icon: Icon(Icons.home_work_outlined), text: "Properties"), // Tab 3
+              Tab(icon: Icon(Icons.dashboard_outlined), text: "Overview"), // <--- NEW TAB [13]
+              Tab(icon: Icon(Icons.school_outlined), text: "Students"), 
+              Tab(icon: Icon(Icons.real_estate_agent_outlined), text: "Homeowners"), 
+              Tab(icon: Icon(Icons.home_work_outlined), text: "Properties"), 
             ],
           ),
         ),
         body: TabBarView(
           children:[
-            _buildUserList("Student"),    // Tab 1: Shows Students only
-            _buildUserList("Homeowner"),  // Tab 2: Shows Homeowners only
-            _buildPropertyList(),         // Tab 3: Shows Properties & Owners
+            _buildOverviewTab(), // <--- NEW TAB VIEW [13]
+            _buildUserList("Student"),    
+            _buildUserList("Homeowner"),  
+            _buildPropertyList(),         
           ],
         ),
       ),
     );
   }
 
-  // --- DEDICATED USER LIST (Filters dynamically by Role!) ---
   Widget _buildUserList(String filterRole) {
     return StreamBuilder<QuerySnapshot>(
-      // Filter database query by Student or Homeowner
       stream: FirebaseFirestore.instance
           .collection('users')
           .where('role', isEqualTo: filterRole)
@@ -170,7 +241,6 @@ class AdminHome extends StatelessWidget {
     );
   }
 
-  // --- DEDICATED CLICKABLE PROPERTY LIST (With Owner Lookup!) ---
   Widget _buildPropertyList() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('properties').snapshots(),
@@ -219,8 +289,6 @@ class AdminHome extends StatelessWidget {
                     : Container(width: 50, height: 50, color: Colors.grey[200], child: const Icon(Icons.home, size: 20, color: textGrey)),
                 ),
                 title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: textDark)),
-                
-                // --- NEW: Dynamic Owner Name & Photo Count ---
                 subtitle: FutureBuilder<String>(
                   future: _getOwnerName(prop.homeownerId),
                   builder: (context, ownerSnapshot) {
@@ -231,7 +299,6 @@ class AdminHome extends StatelessWidget {
                     );
                   },
                 ),
-                
                 trailing: IconButton(
                   icon: Container(
                     padding: const EdgeInsets.all(6),

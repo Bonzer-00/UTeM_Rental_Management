@@ -14,8 +14,8 @@ class ChatService {
     return ids.join("_");
   }
 
-  // Send Message
-  Future<void> sendMessage(String receiverId, String text) async {
+// Send Message (With proper inbox preview text!)
+  Future<void> sendMessage(String receiverId, String text, {String type = 'text', String? bookingId}) async {
     final String currentUserId = _auth.currentUser!.uid;
     final String chatRoomId = getChatRoomId(currentUserId, receiverId);
 
@@ -23,21 +23,29 @@ class ChatService {
       senderId: currentUserId,
       text: text,
       timestamp: DateTime.now(),
+      type: type,
+      bookingId: bookingId,
     );
 
-    // 1. Add message to the sub-collection inside the chat room
+    // 1. Add message to sub-collection
     await _db
         .collection('chats')
         .doc(chatRoomId)
         .collection('messages')
         .add(newMessage.toMap());
 
-    // 2. Update/Create the Chat Room meta-data
+    // --- 2. UPDATED: SET BEAUTIFUL INBOX PREVIEWS --- [23]
+    String previewText = text;
+    if (type == 'contract') previewText = "📜 Tenancy Agreement (Issued)";
+    if (type == 'contract_signed') previewText = "✅ Tenancy Agreement (Signed)";
+    if (type == 'image') previewText = "📷 Photo"; // <--- NEW [23]
+    if (type == 'file') previewText = "📁 Document"; // <--- NEW [1, 23]
+
     await _db.collection('chats').doc(chatRoomId).set({
       'users': [currentUserId, receiverId],
-      'lastMessage': text,
+      'lastMessage': previewText,
       'lastMessageTime': DateTime.now().toIso8601String(),
-      'unreadBy': [receiverId], 
+      'unreadBy': [receiverId],
     }, SetOptions(merge: true));
   }
 

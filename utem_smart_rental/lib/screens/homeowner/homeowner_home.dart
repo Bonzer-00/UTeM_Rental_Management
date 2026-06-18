@@ -363,7 +363,7 @@ class _HomeownerHomeState extends State<HomeownerHome> {
 Widget _buildHomeownerPropertyCard(Property prop) {
     int vacancies = prop.capacity - prop.currentTenants;
     bool isFull = vacancies <= 0;
-    double revenue = prop.price * prop.currentTenants;
+    double revenue = prop.price;  //* prop.currentTenants;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),

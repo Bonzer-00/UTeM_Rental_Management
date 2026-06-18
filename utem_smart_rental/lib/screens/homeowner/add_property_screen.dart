@@ -58,16 +58,22 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
 
   Future<void> _openMapPicker() async {
     FocusScope.of(context).unfocus(); 
+    
+    // --- UPDATED: Pass the typed text directly to the Map! --- [12]
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const MapPickerScreen()),
+      MaterialPageRoute(
+        builder: (context) => MapPickerScreen(
+          initialAddress: _locationCtrl.text.trim(), // Sent here [12]
+        ),
+      ),
     );
 
     if (result != null && result is Map<String, String>) {
       setState(() {
         _locationCtrl.text = result['address'] ?? '';
-        _distanceIndukCtrl.text = result['distInduk'] ?? ''; // <--- NEW
-        _distanceTeknoCtrl.text = result['distTekno'] ?? ''; // <--- NEW
+        _distanceIndukCtrl.text = result['distInduk'] ?? '';
+        _distanceTeknoCtrl.text = result['distTekno'] ?? '';
       });
     }
   }

@@ -5,9 +5,12 @@ class Booking {
   final String studentId;
   final String studentName;
   final DateTime date;
-  final String status; // pending, approved, rejected
-  final int groupSize;          // Added this
-  final String additionalNames; // Added this
+  final String status; 
+  final int groupSize;          
+  final String additionalNames; 
+  final String signatureName; 
+  final String tenancyLength; // <--- NEW: e.g. "12 Months"
+  final String signedDate;    // <--- NEW: e.g. "15 Jun 2026"
 
   Booking({
     required this.id,
@@ -17,8 +20,11 @@ class Booking {
     required this.studentName,
     required this.date,
     this.status = 'pending',
-    this.groupSize = 1,         // Default to 1
-    this.additionalNames = '',   // Default to empty string
+    this.groupSize = 1,         
+    this.additionalNames = '',   
+    this.signatureName = '', 
+    this.tenancyLength = '12 Months', // Default to 12 Months
+    this.signedDate = '',             // Default to empty
   });
 
   Map<String, dynamic> toMap() {
@@ -31,6 +37,9 @@ class Booking {
       'status': status,
       'groupSize': groupSize,
       'additionalNames': additionalNames,
+      'signatureName': signatureName,
+      'tenancyLength': tenancyLength, // <--- NEW
+      'signedDate': signedDate,       // <--- NEW
     };
   }
 
@@ -45,6 +54,9 @@ class Booking {
       status: data['status'] ?? 'pending',
       groupSize: data['groupSize'] ?? 1,
       additionalNames: data['additionalNames'] ?? '',
+      signatureName: data['signatureName'] ?? '',
+      tenancyLength: data['tenancyLength'] ?? '12 Months', // <--- NEW
+      signedDate: data['signedDate'] ?? '',               // <--- NEW
     );
   }
 }

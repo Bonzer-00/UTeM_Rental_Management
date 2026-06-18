@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/booking_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/chat_service.dart'; // <--- NEW: Import Chat Service
 import '../../models/booking_model.dart';
 import '../../utils/constants.dart';
 import 'package:intl/intl.dart';
@@ -120,15 +121,23 @@ class ManageBookingsScreen extends StatelessWidget {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: () async {
-                              // Change status to contract_issued
+                           onPressed: () async {
+                              // 1. Change status to contract_issued
                               await bookingService.updateBookingStatus(b.id, 'contract_issued');
                               
-                              // Notify the student
+                              // --- 2. NEW: AUTO-SEND CONTRACT FILE INTO CHAT ROOM! --- [19, 21]
+                              await ChatService().sendMessage(
+                                b.studentId, 
+                                "Issued Tenancy Contract",
+                                type: 'contract',
+                                bookingId: b.id, // Links this message to the booking ID!
+                              );
+
+                              // 3. Notify the student
                               await notificationService.sendNotification(
                                 b.studentId, 
                                 "Tenancy Contract Issued! 📜", 
-                                "The homeowner has generated your contract for $propertyTitle. Please open the app, sign, and pay deposit."
+                                "The homeowner has generated your contract for $propertyTitle. Please open your chat to review and sign."
                               );
                               
                               if (context.mounted) {

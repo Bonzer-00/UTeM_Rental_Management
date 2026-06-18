@@ -25,6 +25,25 @@ class ChatListScreen extends StatelessWidget {
     return {'name': 'User', 'image': ''};
   }
 
+  // --- NEW: Format raw file names into clean icons for the Inbox list --- [23]
+  String _formatLastMessagePreview(String rawMessage) {
+    if (rawMessage.contains('|')) {
+      String fileName = rawMessage.split('|')[0].toLowerCase();
+      // Check if it's an image extension
+      if (fileName.endsWith('.jpg') || 
+          fileName.endsWith('.jpeg') || 
+          fileName.endsWith('.png') || 
+          fileName.endsWith('.gif') || 
+          fileName.contains('scaled_') ||
+          fileName.contains('prop_')) {
+        return "📷 Photo";
+      } else {
+        return "📁 Document";
+      }
+    }
+    return rawMessage;
+  }
+
   @override
   Widget build(BuildContext context) {
     final String currentUserId = FirebaseAuth.instance.currentUser!.uid;
@@ -122,18 +141,17 @@ class ChatListScreen extends StatelessWidget {
                           fontSize: 15,
                         )
                       ),
-                      subtitle: Text(
-                        lastMessage,
+                     subtitle: Text(
+                        // --- UPDATED: Uses the new formatter! --- [23]
+                        _formatLastMessagePreview(lastMessage), 
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          // --- FIX 2: BOLD LAST MESSAGE IF UNREAD --- [23]
                           color: isUnread ? textDark : textGrey, 
                           fontSize: 13,
                           fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
-                      
                       // --- FIX 2: BLUE DOT INDICATOR & BOLD TIME --- [23]
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,

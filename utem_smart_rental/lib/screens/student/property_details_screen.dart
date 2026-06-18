@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-//import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Ensure Firestore is imported
 import '../../models/property_model.dart';
 import '../../models/booking_model.dart';
 import '../../services/booking_service.dart';
 import '../../utils/constants.dart';
-import '../../services/notification_service.dart';
 import '../shared/chat_screen.dart';
+import '../../services/notification_service.dart';
 
 class PropertyDetailsScreen extends StatefulWidget {
   final Property property;
@@ -20,11 +20,16 @@ class PropertyDetailsScreen extends StatefulWidget {
 class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   int _currentImageIndex = 0;
   late List<String> _propertyImages;
-  bool _isCheckingBooking = false; // Loading state for the button
+  bool _isCheckingBooking = false; 
+
+  // --- NEW: Homeowner Name State ---
+  String _homeownerName = "Loading..."; // [14]
 
   @override
   void initState() {
     super.initState();
+    _fetchHomeownerName(); // Fetch landlord's real name [14]
+    
     if (widget.property.imageUrls.isNotEmpty) {
       _propertyImages = widget.property.imageUrls;
     } else {
@@ -35,13 +40,38 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     }
   }
 
-  // Check if student already booked this house ---
+  // --- NEW: Query Firestore for the Landlord's Name --- [14]
+  void _fetchHomeownerName() async {
+    try {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.property.homeownerId)
+          .get();
+
+      if (userDoc.exists && mounted) {
+        setState(() {
+          _homeownerName = userDoc['name'] ?? 'Homeowner';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _homeownerName = 'Homeowner'; // Fallback
+        });
+      }
+    }
+  }
+
+  void _launchWhatsApp() async {
+    final Uri url = Uri.parse("https://wa.me/60123456789"); 
+    if (!await launchUrl(url)) debugPrint('Could not launch WhatsApp');
+  }
+
   Future<void> _handleBookViewingClick() async {
     setState(() => _isCheckingBooking = true);
     final user = FirebaseAuth.instance.currentUser;
     
     if (user != null) {
-      // Check Firestore for existing booking for THIS property by THIS student
       var query = await FirebaseFirestore.instance
           .collection('bookings')
           .where('propertyId', isEqualTo: widget.property.id)
@@ -62,7 +92,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
               : "You already have a pending request for this property!"),
           )
         );
-        return; // Stop them from booking again
+        return;
       }
     }
     
@@ -70,7 +100,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     if (mounted) _showSleekBookingSheet();
   }
 
- void _showSleekBookingSheet() {
+  void _showSleekBookingSheet() {
     int groupSize = 1;
     int availableSlots = widget.property.capacity - widget.property.currentTenants;
 
@@ -92,7 +122,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   Text("How many people will be staying?", style: TextStyle(color: textGrey.withOpacity(0.8), fontSize: 14)),
                   const SizedBox(height: 24),
 
-                  // Group Size Counter
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children:[
@@ -122,7 +151,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   ),
                   const SizedBox(height: 30),
 
-                  // Pick Date Button
                   SizedBox(
                     width: double.infinity,
                     height: 55,
@@ -135,26 +163,22 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
                         if (selectedDate != null) {
                           final user = FirebaseAuth.instance.currentUser;
-                          
-                          // 1. Create Booking Object (Friends removed, using groupSize counter directly)
                           Booking newBooking = Booking(
                             id: '', propertyId: widget.property.id, propertyTitle: widget.property.title,
                             studentId: user!.uid, studentName: user.email!.split('@')[0], date: selectedDate,
                             groupSize: groupSize, additionalNames: '', 
                           );
 
-                          // 2. Save Booking to Database
                           await BookingService().createBooking(newBooking);
                           
-                          // 3. Send Notification to Homeowner
                           await NotificationService().sendNotification(
-                            widget.property.homeownerId, 
+                            widget.property.homeownerId, // Recipient: Homeowner [21]
                             "New Viewing Request 📅", 
                             "${newBooking.studentName} requested to view ${widget.property.title} for a group of $groupSize."
                           );
 
                           if (context.mounted) {
-                            Navigator.pop(context); // Close sheet
+                            Navigator.pop(context); 
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text("Viewing Request Sent!")));
                           }
                         }
@@ -249,15 +273,26 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                         // --- DUAL CAMPUS DISTANCES BADGES ---
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.start, // Aligns icon to top if address wraps [1]
                             children: [
-                              const Icon(Icons.location_on, color: Colors.redAccent, size: 18),
-                              const SizedBox(width: 4),
-                              Expanded(child: Text(widget.property.location, style: const TextStyle(fontSize: 14, color: textGrey))),
+                              const Icon(Icons.location_on, color: Colors.redAccent, size: 18), 
+                              const SizedBox(width: 4), 
+                              Expanded(
+                                child: Text(widget.property.location, style: const TextStyle(fontSize: 14, color: textGrey)),
+                              ), 
                             ],
                           ),
                           const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              const Icon(Icons.person_outline, color: textGrey, size: 18),
+                              const SizedBox(width: 6),
+                              Text("Listed by: $_homeownerName", style: const TextStyle(fontSize: 14, color: textGrey, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
                           Row(
                             children: [
                               Container(
@@ -286,6 +321,16 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             ],
                           ),
                           const SizedBox(height: 24),
+
+                          Container(
+                            padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.withOpacity(0.3))),
+                            child: Row(
+                              children:[
+                                const Icon(Icons.people, color: Colors.orange), const SizedBox(width: 12),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[const Text("Occupancy Status", style: TextStyle(fontWeight: FontWeight.bold, color: textDark)), const SizedBox(height: 4), LinearProgressIndicator(value: widget.property.capacity == 0 ? 0 : widget.property.currentTenants / widget.property.capacity, backgroundColor: Colors.white, color: Colors.orange, minHeight: 6, borderRadius: BorderRadius.circular(3)), const SizedBox(height: 4), Text("${widget.property.currentTenants} out of ${widget.property.capacity} slots filled", style: const TextStyle(fontSize: 12, color: Colors.deepOrange))]))
+                              ],
+                            ),
+                          ),
                           const SizedBox(height: 24),
                           const Text("Description", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
                           const SizedBox(height: 8),
@@ -312,13 +357,14 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         ],
       ),
 
+      // Sticky Bottom Action Bar
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: defaultPadding, vertical: 16),
         decoration: BoxDecoration(color: cardWhite, boxShadow:[BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]),
         child: SafeArea(
           child: Row(
             children:[
-              // --- IN-APP CHAT BUTTON (REPLACED WHATSAPP!) ---
+              // --- UPDATED: Passing the real Homeowner's Name to ChatScreen --- [20]
               Container(
                 decoration: BoxDecoration(color: primaryBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
                 child: IconButton(
@@ -329,7 +375,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       MaterialPageRoute(
                         builder: (_) => ChatScreen(
                           receiverId: widget.property.homeownerId,
-                          receiverName: "Homeowner", 
+                          receiverName: _homeownerName, // <--- REAL NAME IS NOW PASSED HERE! [20]
                         ),
                       ),
                     );
@@ -337,20 +383,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                 ),
               ),
               const SizedBox(width: 16),
-              
-              // --- CORRECTED: BOOK VIEWING BUTTON ---
-              Expanded(
-                child: SizedBox(
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _isCheckingBooking ? null : () => _handleBookViewingClick(), // <--- THE FIX
-                    style: ElevatedButton.styleFrom(backgroundColor: primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                    child: _isCheckingBooking 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text("Book Viewing", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                  ),
-                ),
-              ),
+              Expanded(child: SizedBox(height: 50, child: ElevatedButton(onPressed: _isCheckingBooking ? null : () => _handleBookViewingClick(), style: ElevatedButton.styleFrom(backgroundColor: primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text("Book Viewing", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))))),
             ],
           ),
         ),

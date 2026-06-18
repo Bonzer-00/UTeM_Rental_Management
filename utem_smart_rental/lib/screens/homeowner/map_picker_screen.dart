@@ -5,7 +5,8 @@ import 'package:geolocator/geolocator.dart';
 import '../../utils/constants.dart';
 
 class MapPickerScreen extends StatefulWidget {
-  const MapPickerScreen({super.key});
+  final String? initialAddress; // <--- NEW: Receives typed address from form [12]
+  const MapPickerScreen({super.key, this.initialAddress});
 
   @override
   State<MapPickerScreen> createState() => _MapPickerScreenState();
@@ -13,17 +14,83 @@ class MapPickerScreen extends StatefulWidget {
 
 class _MapPickerScreenState extends State<MapPickerScreen> {
   late GoogleMapController _mapController;
+  final TextEditingController _searchCtrl = TextEditingController(); // <--- NEW: Map Search Bar
   
-  // Coordinates for both campuses
-  final LatLng _utemInduk = const LatLng(2.3038, 102.3177); // Durian Tunggal
-  final LatLng _utemTekno = const LatLng(2.2782, 102.2750); // Ayer Keroh / MITC
+  // Official Campus Coordinates
+  final LatLng _utemInduk = const LatLng(2.3083, 102.3177); 
+  final LatLng _utemTekno = const LatLng(2.2782, 102.2750); 
   
-  LatLng _currentPosition = const LatLng(2.3138, 102.3212); 
+  LatLng _currentPosition = const LatLng(2.3083, 102.3177); 
   String _currentAddress = "Move the map to select a location...";
   
   double _distanceToInduk = 0.0;
   double _distanceToTekno = 0.0;
   bool _isDragging = false;
+
+  // --- NEW: Set of Markers for 3-Marker View ---
+  final Set<Marker> _markers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _initCampusMarkers(); // Put permanent UTeM flags on the map!
+  }
+
+  // Draw the official campus landmarks on the map
+  void _initCampusMarkers() {
+    _markers.add(
+      Marker(
+        markerId: const MarkerId('utem_induk'),
+        position: _utemInduk,
+        infoWindow: const InfoWindow(title: 'UTeM Kampus Induk (Main)', snippet: 'Durian Tunggal'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure), // Cyan/Blue Marker
+      ),
+    );
+    _markers.add(
+      Marker(
+        markerId: const MarkerId('utem_tekno'),
+        position: _utemTekno,
+        infoWindow: const InfoWindow(title: 'UTeM Kampus Teknologi', snippet: 'Ayer Keroh'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange), // Orange Marker
+      ),
+    );
+  }
+
+  // --- NEW: Auto-Pin typed address on map load --- [12]
+  void _moveToInitialLocation() async {
+    if (widget.initialAddress != null && widget.initialAddress!.isNotEmpty) {
+      try {
+        // Geocode the manually entered address into GPS coords
+        List<Location> locations = await locationFromAddress(widget.initialAddress!);
+        if (locations.isNotEmpty) {
+          LatLng target = LatLng(locations.first.latitude, locations.first.longitude);
+          // Slide camera directly to their typed house address! [12]
+          _mapController.animateCamera(CameraUpdate.newLatLngZoom(target, 15));
+        }
+      } catch (e) {
+        debugPrint("Initial address not found: $e");
+      }
+    }
+  }
+
+  // --- NEW: Search Bar execution --- [12]
+  void _searchAddress() async {
+    String query = _searchCtrl.text.trim();
+    if (query.isNotEmpty) {
+      FocusScope.of(context).unfocus();
+      try {
+        List<Location> locations = await locationFromAddress(query);
+        if (locations.isNotEmpty) {
+          LatLng target = LatLng(locations.first.latitude, locations.first.longitude);
+          _mapController.animateCamera(CameraUpdate.newLatLngZoom(target, 15));
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(backgroundColor: Colors.red, content: Text("Could not find this search location.")),
+        );
+      }
+    }
+  }
 
   void _onCameraMove(CameraPosition position) {
     setState(() {
@@ -39,11 +106,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
   Future<void> _updateAddressAndDistance() async {
     try {
-      // 1. Calculate Distances to BOTH campuses
       _distanceToInduk = Geolocator.distanceBetween(_utemInduk.latitude, _utemInduk.longitude, _currentPosition.latitude, _currentPosition.longitude) / 1000;
       _distanceToTekno = Geolocator.distanceBetween(_utemTekno.latitude, _utemTekno.longitude, _currentPosition.latitude, _currentPosition.longitude) / 1000;
 
-      // 2. Fetch the Full Address
       List<Placemark> placemarks = await placemarkFromCoordinates(_currentPosition.latitude, _currentPosition.longitude);
 
       if (placemarks.isNotEmpty) {
@@ -73,18 +138,54 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       ),
       body: Stack(
         children:[
+          // 1. Map (Includes campus markers)
           GoogleMap(
             initialCameraPosition: CameraPosition(target: _utemInduk, zoom: 13),
-            onMapCreated: (controller) => _mapController = controller,
+            markers: _markers, // Displays both campus flags!
+            onMapCreated: (controller) {
+              _mapController = controller;
+              _moveToInitialLocation(); // Auto-pin logic starts here! [12]
+            },
             onCameraMove: _onCameraMove, onCameraIdle: _onCameraIdle,
             myLocationButtonEnabled: false, zoomControlsEnabled: false,
           ),
+
+          // 2. Center House Pin (Our drag anchor)
           Center(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 40), 
               child: Icon(Icons.location_on, size: 50, color: _isDragging ? Colors.grey : Colors.redAccent),
             ),
           ),
+
+          // 3. NEW: FLOATING SEARCH BAR ON THE MAP --- [12]
+          Positioned(
+            top: 16, left: 16, right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow:[BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4))],
+              ),
+              child: TextField(
+                controller: _searchCtrl,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _searchAddress(),
+                decoration: InputDecoration(
+                  hintText: "Search for address...",
+                  hintStyle: const TextStyle(color: textGrey, fontSize: 14),
+                  border: InputBorder.none,
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.search, color: primaryBlue),
+                    onPressed: _searchAddress,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // 4. Bottom Sheet details
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
@@ -93,7 +194,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
                 children:[
-                  // Show Both Distances!
                   Row(
                     children:[
                       Expanded(child: _buildDistanceBadge("Induk", _distanceToInduk, primaryBlue)),
@@ -110,7 +210,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                     width: double.infinity, height: 50,
                     child: ElevatedButton(
                       onPressed: _isDragging ? null : () {
-                        // Return ALL data back to Add Property Screen
                         Navigator.pop(context, {
                           'address': _currentAddress,
                           'distInduk': _distanceToInduk.toStringAsFixed(1),

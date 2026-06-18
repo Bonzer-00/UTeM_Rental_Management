@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/property_model.dart';
-import '../../services/property_service.dart';
+import '../../models/booking_model.dart';
 import '../../utils/constants.dart';
-//import '../auth/login_screen.dart';
-import 'property_details_screen.dart';
-import 'my_bookings_screen.dart';
 import '../shared/profile_view.dart';
 import '../shared/notification_bell.dart';
-import '../shared/chat_list_screen.dart'; // <--- NEW IMPORT
+import '../shared/chat_list_screen.dart'; 
+import '../shared/chat_screen.dart'; 
+import 'contract_payment_screen.dart'; 
+import 'student_explore.dart';
+import 'my_bookings_screen.dart';
+import 'add_vacancy_screen.dart';
 
 class StudentHome extends StatefulWidget {
   const StudentHome({super.key});
@@ -19,232 +21,320 @@ class StudentHome extends StatefulWidget {
 }
 
 class _StudentHomeState extends State<StudentHome> {
-  final PropertyService _propertyService = PropertyService();
-  
-  int _selectedIndex = 1; 
+  final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
+  int _selectedIndex = 1; // Default starting tab: Explore
 
-  String _searchQuery = "";
-  double _maxDistance = 15.0; 
-  double _maxPrice = 1500.0;
-  String _sortBy = 'Price: Low to High';
-
-  late Stream<List<Property>> _propertiesStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _propertiesStream = _propertyService.getAllProperties();
-  }
-
-  void _showFilterBottomSheet() {
-    FocusScope.of(context).unfocus();
-    showModalBottomSheet(
-      context: context, backgroundColor: cardWhite,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
-                children:[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children:[
-                      const Text("Filter Properties", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
-                      TextButton(
-                        onPressed: () {
-                          setModalState(() { _maxPrice = 1500.0; _maxDistance = 15.0; });
-                          setState(() { _maxPrice = 1500.0; _maxDistance = 15.0; });
-                        },
-                        child: const Text("Reset", style: TextStyle(color: primaryBlue, fontWeight: FontWeight.bold)),
-                      )
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[const Text("Max Monthly Rent:", style: TextStyle(fontWeight: FontWeight.bold, color: textDark)), Text("RM ${_maxPrice.toStringAsFixed(0)}", style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold))]),
-                  Slider(value: _maxPrice, min: 200, max: 2000, divisions: 18, activeColor: primaryBlue, onChanged: (val) { setModalState(() => _maxPrice = val); setState(() => _maxPrice = val); }),
-                  const SizedBox(height: 16),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[const Text("Max Distance to UTeM:", style: TextStyle(fontWeight: FontWeight.bold, color: textDark)), Text("${_maxDistance.toStringAsFixed(1)} km", style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold))]),
-                  Slider(value: _maxDistance, min: 1, max: 30, divisions: 29, activeColor: primaryBlue, onChanged: (val) { setModalState(() => _maxDistance = val); setState(() => _maxDistance = val); }),
-                  const SizedBox(height: 30),
-                  SizedBox(width: double.infinity, height: 50, child: ElevatedButton(onPressed: () { FocusScope.of(context).unfocus(); Navigator.pop(context); }, style: ElevatedButton.styleFrom(backgroundColor: primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), child: const Text("Apply Filters", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))))
-                ],
-              ),
-            );
-          }
-        );
-      }
-    );
-  }
-
-  Widget _buildStudentHomeTab() {
-    return Center(
+  // Fallback Welcome Screen [16]
+  Widget _buildWelcomingPlaceholder() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(defaultPadding),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children:[
-          Icon(Icons.dashboard_customize_outlined, size: 80, color: Colors.grey.shade300),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Rent Smart.", style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: textDark)),
+          const Text("Stay Better.", style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: primaryBlue)),
           const SizedBox(height: 16),
-          const Text("Student Dashboard Overview", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
-          const SizedBox(height: 8),
-          const Text("Coming soon in the next update.", style: TextStyle(color: textGrey)),
+          const Text("The official hub for safe, student-friendly rentals near UTeM Melaka.", style: TextStyle(color: textGrey, fontSize: 16)),
+          const SizedBox(height: 30),
+          
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: primaryBlue, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: primaryBlue.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.verified_user, color: Colors.white, size: 40),
+                const SizedBox(height: 16),
+                const Text("Verified Listings", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                const Text("All properties are checked for student safety.", style: TextStyle(color: Colors.white70)),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => setState(() => _selectedIndex = 1), 
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: primaryBlue),
+                  child: const Text("Start Exploring", style: TextStyle(fontWeight: FontWeight.bold)),
+                )
+              ],
+            ),
+          ),
+          const SizedBox(height: 30),
+          const Text("Nearby Areas", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ["Taman Tasik", "Ayer Keroh", "Durian Tunggal", "Bukit Beruang"].map((area) => Container(
+                margin: const EdgeInsets.only(right: 12), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+                child: Text(area, style: const TextStyle(fontWeight: FontWeight.bold, color: textGrey)),
+              )).toList(),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildExploreTab() {
-    return Column(
-      children:[
-        Padding(
-          padding: const EdgeInsets.all(defaultPadding),
-          child: Container(
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow:[BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]),
-            child: TextField(
-              onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
-              decoration: InputDecoration(
-                hintText: 'Search area or facilities...', hintStyle: const TextStyle(color: textGrey),
-                prefixIcon: const Icon(Icons.search, color: textGrey),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.tune, color: primaryBlue),
-                  onPressed: () { FocusScope.of(context).unfocus(); _showFilterBottomSheet(); },
-                ),
-                border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 15),
-              ),
-            ),
-          ),
-        ),
+  // Active Rental Portal (My Home, Rent Due, Contract, Maintenance) [16, 21]
+  Widget _buildActiveRentalPortal(Booking booking, Property property) {
+    double deposit = property.price * 2;
+    double total = property.price + deposit + 100;
 
-        Expanded(
-          child: StreamBuilder<List<Property>>(
-            stream: _propertiesStream,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: primaryBlue));
-              if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text('No properties available.', style: TextStyle(color: textGrey)));
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(defaultPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children:[
+          const Text("My Rental Portal", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark)),
+          const SizedBox(height: 16),
 
-              var properties = snapshot.data!.where((p) {
-                bool matchesSearch = p.location.toLowerCase().contains(_searchQuery) || p.title.toLowerCase().contains(_searchQuery) || p.description.toLowerCase().contains(_searchQuery) || p.facilities.any((f) => f.toLowerCase().contains(_searchQuery));
-                return matchesSearch && p.distanceTekno <= _maxDistance && p.distanceInduk <= _maxDistance && p.price <= _maxPrice;
-              }).toList();
-
-              if (_sortBy == 'Price: Low to High') properties.sort((a, b) => a.price.compareTo(b.price));
-              else if (_sortBy == 'Price: High to Low') properties.sort((a, b) => b.price.compareTo(a.price));
-              else if (_sortBy == 'Nearest to UTeM') properties.sort((a, b) => a.distanceTekno.compareTo(b.distanceTekno));
-
-              return Column(
-                children:[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: defaultPadding),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children:[
-                        Text("${properties.length} Properties", style: const TextStyle(fontWeight: FontWeight.bold, color: textDark, fontSize: 14)),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                          decoration: BoxDecoration(color: primaryBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _sortBy, icon: const Icon(Icons.keyboard_arrow_down, color: primaryBlue, size: 18), dropdownColor: cardWhite, borderRadius: BorderRadius.circular(12), style: const TextStyle(color: primaryBlue, fontSize: 12, fontWeight: FontWeight.bold),
-                              onChanged: (String? newValue) { FocusScope.of(context).unfocus(); if (newValue != null) setState(() => _sortBy = newValue); },
-                              items:['Price: Low to High', 'Price: High to Low', 'Nearest to UTeM']
-                                  .map<DropdownMenuItem<String>>((String value) => DropdownMenuItem<String>(
-                                        value: value,
-                                        child: Text(value),
-                                      ))
-                                  .toList(),
-                            ),
-                          ),
-                        )
-                      ],
-                    ),
+          // Active House Card [16]
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    property.imageUrls.isNotEmpty ? property.imageUrls[0] : "https://images.unsplash.com/photo-1568605114967-8130f3a36994?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80",
+                    width: 80, height: 80, fit: BoxFit.cover,
                   ),
-                  const SizedBox(height: 10),
-
-                  properties.isEmpty 
-                    ? const Expanded(child: Center(child: Text("No properties match your filters.", style: TextStyle(color: textGrey))))
-                    : Expanded(
-                        child: ListView.builder(
-                          itemCount: properties.length, padding: const EdgeInsets.symmetric(horizontal: defaultPadding),
-                          itemBuilder: (context, index) => _buildPropertyCard(properties[index]),
-                        ),
-                      ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPropertyCard(Property prop) {
-    return GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus(); 
-        Navigator.push(context, MaterialPageRoute(builder: (_) => PropertyDetailsScreen(property: prop)));
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(color: cardWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200), boxShadow:[BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 4))]),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children:[
-              ClipRRect(
-                borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
-                child: Image.network(
-                  prop.imageUrls.isNotEmpty 
-                      ? prop.imageUrls[0] 
-                      : "https://images.unsplash.com/photo-1568605114967-8130f3a36994?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80", 
-                  width: 130, fit: BoxFit.cover, 
-                  errorBuilder: (context, error, stackTrace) => Container(width: 130, color: Colors.grey[300], child: const Icon(Icons.home, color: Colors.white, size: 40)),
                 ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
+                const SizedBox(width: 16),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children:[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children:[
-                          Text("RM ${prop.price.toStringAsFixed(0)}/mo", style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold, fontSize: 14)),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Row(children: [const Icon(Icons.school, size: 12, color: primaryBlue), const SizedBox(width: 2), Text("${prop.distanceInduk}km", style: const TextStyle(color: primaryBlue, fontSize: 11, fontWeight: FontWeight.bold))]),
-                              Row(children: [const Icon(Icons.domain, size: 12, color: Colors.orange), const SizedBox(width: 2), Text("${prop.distanceTekno}km", style: const TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold))]),
-                            ],
-                          )
-                        ],
-                      ),
+                      Text(property.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textDark), maxLines: 1, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 4),
-                      Text(prop.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textDark), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      Text(prop.description, style: const TextStyle(color: textGrey, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      const Spacer(),
-                      Wrap(
-                        spacing: 6, runSpacing: 4,
-                        children: prop.facilities.take(3).map((f) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: primaryBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Text(f, style: const TextStyle(color: primaryBlue, fontSize: 10, fontWeight: FontWeight.bold)))).toList(),
-                      ),
+                      Text("Address: ${property.location}", style: const TextStyle(color: textGrey, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
                     ],
                   ),
+                )
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Rent Tracker Card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: primaryBlue.withOpacity(0.05), borderRadius: BorderRadius.circular(16), border: Border.all(color: primaryBlue.withOpacity(0.2))),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children:[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children:[
+                    const Text("Monthly Rent Due", style: TextStyle(color: textGrey, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Text("RM ${property.price.toStringAsFixed(2)}", style: const TextStyle(color: primaryBlue, fontSize: 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    const Text("Next Due: 1st July 2026", style: TextStyle(color: textGrey, fontSize: 11)),
+                  ],
                 ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(20)),
+                  child: const Text("PAID", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          const Text("Quick Actions", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark)),
+          const SizedBox(height: 12),
+          
+         // --- UPDATED: 3-BUTTON QUICK ACTIONS ROW --- [16, 21]
+          Row(
+            children: [
+              // 1. VIEW CONTRACT
+              Expanded(
+                child: _buildPortalButton(Icons.description_outlined, "Lease Contract", Colors.purple, () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => ContractPaymentScreen(booking: booking, property: property, isViewOnly: true)));
+                }),
+              ),
+              const SizedBox(width: 8),
+              
+              // 2. CONTACT LANDLORD
+              Expanded(
+                child: _buildPortalButton(Icons.chat_bubble_outline, "Contact Landlord", Colors.green, () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(receiverId: property.homeownerId, receiverName: "My Landlord")));
+                }),
+              ),
+              const SizedBox(width: 8),
+
+             // 3. UPDATED: PROMOTE VACANCY WITH SECURE DOUBLE-PROMOTION CHECK [16, 21]
+              Expanded(
+                child: _buildPortalButton(Icons.group_add, "Promote Vacancy", Colors.orange, () async {
+                  FocusScope.of(context).unfocus();
+
+                  // Show a quick sleek loading spinner while we check Firestore
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const Center(child: CircularProgressIndicator(color: primaryBlue)),
+                  );
+
+                  try {
+                    // Check if this student already has an active vacancy post for this property
+                    var query = await FirebaseFirestore.instance
+                        .collection('vacancies')
+                        .where('studentId', isEqualTo: _currentUserId)
+                        .where('propertyId', isEqualTo: property.id)
+                        .get();
+
+                    if (context.mounted) Navigator.pop(context); // Close loading spinner
+
+                    if (query.docs.isNotEmpty) {
+                      // Already promoted! Block them and show a warning
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            backgroundColor: Colors.orange,
+                            content: Text("You already have an active vacancy post! Edit it in the Roommate Finder tab."),
+                          ),
+                        );
+                      }
+                    } else {
+                      // Not promoted yet! Safely navigate to the form [16]
+                      if (context.mounted) {
+                        Navigator.push(
+                          context, 
+                          MaterialPageRoute(
+                            builder: (_) => AddVacancyScreen(booking: booking, property: property),
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      Navigator.pop(context); // Safety close
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                    }
+                  }
+                }),
               ),
             ],
           ),
+          const SizedBox(height: 24),
+
+          const Text("Maintenance / Reports", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark)),
+          const SizedBox(height: 12),
+          _buildMaintenanceSection(property.homeownerId, property.title),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortalButton(IconData icon, String label, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+        child: Column(
+          children:[
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: textDark)),
+          ],
         ),
       ),
     );
   }
 
-  // --- 2. UPDATED BODY TAB ROUTER ---
+  Widget _buildMaintenanceSection(String landlordId, String propertyTitle) {
+    final TextEditingController reportCtrl = TextEditingController();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children:[
+          const Text("Report an Issue (Leak, Damage, etc.)", style: TextStyle(fontWeight: FontWeight.bold, color: textDark, fontSize: 13)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: reportCtrl,
+            decoration: InputDecoration(
+              hintText: "e.g. Master bathroom pipe is leaking.", hintStyle: const TextStyle(color: Colors.grey, fontSize: 13), filled: true, fillColor: const Color(0xFFF8FAFC),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () async {
+                if (reportCtrl.text.trim().isNotEmpty) {
+                  String reportText = reportCtrl.text.trim();
+                  reportCtrl.clear();
+                  FocusScope.of(context).unfocus();
+
+                  await FirebaseFirestore.instance.collection('notifications').add({
+                    'userId': landlordId,
+                    'title': "Maintenance Request 🛠️",
+                    'message': "A tenant at '$propertyTitle' reported: '$reportText'",
+                    'timestamp': DateTime.now().toIso8601String(),
+                    'isRead': false,
+                  });
+
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text("Report sent directly to landlord!")));
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              child: const Text("Send Report", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentHomeTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('bookings')
+          .where('studentId', isEqualTo: _currentUserId)
+          .where('status', isEqualTo: 'signed')
+          .snapshots(),
+      builder: (context, bookingSnapshot) {
+        if (bookingSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: primaryBlue));
+        }
+
+        final signedBookings = bookingSnapshot.data?.docs ?? [];
+
+        if (signedBookings.isEmpty) {
+          return _buildWelcomingPlaceholder();
+        }
+
+        var bookingDoc = signedBookings.first;
+        Booking booking = Booking.fromMap(bookingDoc.data() as Map<String, dynamic>, bookingDoc.id);
+
+        return FutureBuilder<DocumentSnapshot>(
+          future: FirebaseFirestore.instance.collection('properties').doc(booking.propertyId).get(),
+          builder: (context, propSnapshot) {
+            if (propSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: primaryBlue));
+            }
+            if (!propSnapshot.hasData || !propSnapshot.data!.exists) {
+              return _buildWelcomingPlaceholder(); 
+            }
+
+            Property property = Property.fromMap(propSnapshot.data!.data() as Map<String, dynamic>, propSnapshot.data!.id);
+            return _buildActiveRentalPortal(booking, property);
+          },
+        );
+      },
+    );
+  }
+
+  // --- DYNAMIC BODY TAB ROUTER --- [15, 18, 23]
   Widget _buildBody() {
     if (_selectedIndex == 0) return _buildStudentHomeTab();
-    if (_selectedIndex == 1) return _buildExploreTab();
-    if (_selectedIndex == 2) return const ChatListScreen(); // <--- NEW CHAT LIST TAB! [18]
+    if (_selectedIndex == 1) return const StudentExplore(); // <--- CALLING NEW DEDICATED FILE!
+    if (_selectedIndex == 2) return const ChatListScreen(); 
     return const ProfileView();
   }
 
@@ -256,10 +346,8 @@ class _StudentHomeState extends State<StudentHome> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         backgroundColor: backgroundLight,
-        
-        // --- 3. DYNAMIC APPBAR LOGIC ---
         appBar: _selectedIndex == 2 
-            ? null // Hide main AppBar because ChatListScreen has its own custom AppBar!
+            ? null 
             : AppBar(
                 backgroundColor: backgroundLight, 
                 elevation: 0, 
@@ -267,10 +355,10 @@ class _StudentHomeState extends State<StudentHome> {
                     ? const Text("My Profile", style: TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 18))
                     : const SmartRentalLogo(),
                 actions: _selectedIndex == 3
-                    ? null // No notification/booking bell on the Profile tab
+                    ? null 
                     : [
                         const NotificationBell(),
-                        if (_selectedIndex == 1) // Only show bookings button on the Explore Tab
+                        if (_selectedIndex == 1) 
                           IconButton(
                             icon: const Icon(Icons.calendar_month, color: textDark), 
                             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyBookingsScreen()))
@@ -280,8 +368,6 @@ class _StudentHomeState extends State<StudentHome> {
               ),
         
         body: _buildBody(), 
-
-        // --- 4. THE 4-ITEM BOTTOM NAVIGATION BAR WITH UNREAD BADGE ---
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _selectedIndex,
           onTap: (index) => setState(() => _selectedIndex = index),
@@ -290,18 +376,17 @@ class _StudentHomeState extends State<StudentHome> {
             const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: "Home"),
             const BottomNavigationBarItem(icon: Icon(Icons.search), label: "Explore"),
             
-           // --- NEW: CHAT ICON WITH LIVE BIGGER RED DOT BADGE --- [15, 23]
             BottomNavigationBarItem(
               icon: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('chats')
-                    .where('unreadBy', arrayContains: uid)
+                    .where('unreadBy', arrayContains: uid) 
                     .snapshots(),
                 builder: (context, snapshot) {
                   bool hasUnread = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
                   return Badge(
                     isLabelVisible: hasUnread, 
-                    smallSize: 12, // <--- THE FIX: Double the default size! [15]
+                    smallSize: 12, 
                     backgroundColor: Colors.redAccent,
                     child: const Icon(Icons.chat_bubble_outline),
                   );
