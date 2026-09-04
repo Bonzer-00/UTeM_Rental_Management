@@ -56,16 +56,26 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     );
   }
 
-  // --- NEW: Auto-Pin typed address on map load --- [12]
+// --- UPDATED: AUTO-PIN TYPED ADDRESS WITH NATIVE STABILITY DELAY --- [12]
   void _moveToInitialLocation() async {
     if (widget.initialAddress != null && widget.initialAddress!.isNotEmpty) {
       try {
-        // Geocode the manually entered address into GPS coords
+        // 1. Add a small delay so the native Google Map finishes rendering first [12]
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // 2. Turn the typed text address into GPS coordinates
         List<Location> locations = await locationFromAddress(widget.initialAddress!);
+        
         if (locations.isNotEmpty) {
           LatLng target = LatLng(locations.first.latitude, locations.first.longitude);
-          // Slide camera directly to their typed house address! [12]
+          
+          // 3. Slide the camera directly to their typed house address! [12]
           _mapController.animateCamera(CameraUpdate.newLatLngZoom(target, 15));
+          
+          // 4. Update coordinates so the bottom sheet calculates UTeM distances instantly! [12]
+          setState(() {
+            _currentPosition = target;
+          });
         }
       } catch (e) {
         debugPrint("Initial address not found: $e");
@@ -214,6 +224,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                           'address': _currentAddress,
                           'distInduk': _distanceToInduk.toStringAsFixed(1),
                           'distTekno': _distanceToTekno.toStringAsFixed(1),
+                          'latitude': _currentPosition.latitude.toString(), 
+                          'longitude': _currentPosition.longitude.toString(), 
                         });
                       },
                       style: ElevatedButton.styleFrom(backgroundColor: primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),

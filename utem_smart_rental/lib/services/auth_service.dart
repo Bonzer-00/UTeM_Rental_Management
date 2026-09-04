@@ -29,7 +29,7 @@ class AuthService {
       }
       return user;
     } catch (e) {
-      print('Sign Up Error: $e');
+      //print('Sign Up Error: $e');
       return null;
     }
   }
@@ -43,7 +43,7 @@ class AuthService {
       );
       return userCredential.user;
     } catch (e) {
-      print('Login Error: $e');
+      //print('Login Error: $e');
       return null;
     }
   }
@@ -56,7 +56,7 @@ class AuthService {
         return doc['role'];
       }
     } catch (e) {
-      print('Get Role Error: $e');
+      //print('Get Role Error: $e');
     }
     return null;
   }

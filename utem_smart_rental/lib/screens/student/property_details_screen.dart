@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Ensure Firestore is imported
 import '../../models/property_model.dart';
@@ -8,6 +7,9 @@ import '../../services/booking_service.dart';
 import '../../utils/constants.dart';
 import '../shared/chat_screen.dart';
 import '../../services/notification_service.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // <--- NEW IMPORT [12]
+import 'package:flutter/foundation.dart'; // <--- NEW IMPORT
+import 'package:flutter/gestures.dart';    // <--- NEW IMPORT
 
 class PropertyDetailsScreen extends StatefulWidget {
   final Property property;
@@ -60,11 +62,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         });
       }
     }
-  }
-
-  void _launchWhatsApp() async {
-    final Uri url = Uri.parse("https://wa.me/60123456789"); 
-    if (!await launchUrl(url)) debugPrint('Could not launch WhatsApp');
   }
 
   Future<void> _handleBookViewingClick() async {
@@ -199,8 +196,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    double deposit = widget.property.price * 2;
-    double totalMoveIn = widget.property.price + deposit + 100.0;
 
     return Scaffold(
       backgroundColor: backgroundLight,
@@ -273,17 +268,64 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
+                          // Address Row [1]
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.start, // Aligns icon to top if address wraps [1]
-                            children: [
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children:[
                               const Icon(Icons.location_on, color: Colors.redAccent, size: 18), 
                               const SizedBox(width: 4), 
-                              Expanded(
-                                child: Text(widget.property.location, style: const TextStyle(fontSize: 14, color: textGrey)),
-                              ), 
+                              Expanded(child: Text(widget.property.location, style: const TextStyle(fontSize: 14, color: textGrey))),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
+
+                         // --- THE INTERACTIVE GOOGLE MAP WIDGET (WITH GESTURE RECOGNIZERS) ---
+                          Container(
+                            height: 180, 
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: GoogleMap(
+                                key: ValueKey('map_${widget.property.id}'), 
+                                initialCameraPosition: CameraPosition(
+                                  target: LatLng(widget.property.latitude, widget.property.longitude), 
+                                  zoom: 12,
+                                ),
+                                myLocationButtonEnabled: false,
+                                zoomControlsEnabled: true, 
+
+                                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                                  Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+                                },
+
+                                markers: {
+                                  Marker(
+                                    markerId: const MarkerId('property_details_map'),
+                                    position: LatLng(widget.property.latitude, widget.property.longitude),
+                                    infoWindow: InfoWindow(title: widget.property.title),
+                                     icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                                  ),
+                                    Marker(
+                                    markerId: const MarkerId('utem_induk'),
+                                    position: const LatLng(2.3083, 102.3177),
+                                    infoWindow: const InfoWindow(title: 'UTeM Kampus Induk', snippet: 'Durian Tunggal'),
+                                    icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                                  ),
+                                  Marker(
+                                    markerId: const MarkerId('utem_tekno'),
+                                    position: const LatLng(2.2782, 102.2750),
+                                    infoWindow: const InfoWindow(title: 'UTeM Kampus Teknologi', snippet: 'Jalan TU 62, Ayer Keroh'),
+                                    icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+                                  ),
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
                           Row(
                             children: [
                               const Icon(Icons.person_outline, color: textGrey, size: 18),
@@ -292,7 +334,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             ],
                           ),
                           const SizedBox(height: 16),
-
                           Row(
                             children: [
                               Container(
@@ -340,11 +381,31 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                           const SizedBox(height: 12),
                           Wrap(spacing: 8, runSpacing: 8, children: widget.property.facilities.map((f) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: primaryBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Text(f, style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold, fontSize: 12)))).toList()),
                           const Divider(height: 40, color: Colors.black12),
+                         // --- UPDATED: CALCULATES REAL USER VALUES --- [1]
                           const Text("Estimated Move-in Cost", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
                           const SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: cardWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
-                            child: Column(children:[_buildCostRow("Monthly Rent", "RM ${widget.property.price.toStringAsFixed(0)}"), _buildCostRow("Security Deposit (2x)", "RM ${deposit.toStringAsFixed(0)}"), _buildCostRow("Utility Deposit", "RM 100"), const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider()), Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[const Text("Total Move-in Cost", style: TextStyle(fontWeight: FontWeight.bold, color: textDark, fontSize: 16)), Text("RM ${totalMoveIn.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: primaryBlue, fontSize: 18))])]),
+                            child: Column(
+                              children:[
+                                _buildCostRow("Monthly Rent", "RM ${widget.property.price.toStringAsFixed(0)}"),
+                                _buildCostRow("Security Deposit", "RM ${widget.property.deposit.toStringAsFixed(0)}"),
+                                _buildCostRow("Utility Deposit", "RM ${widget.property.utilities.toStringAsFixed(0)}"),
+                                if (widget.property.additionalFees > 0)
+                                  _buildCostRow("Additional Fees", "RM ${widget.property.additionalFees.toStringAsFixed(0)}"),
+                                const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider()),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+                                  children:[
+                                    const Text("Total Move-in Cost", style: TextStyle(fontWeight: FontWeight.bold, color: textDark, fontSize: 16)), 
+                                    Text(
+                                      "RM ${(widget.property.price + widget.property.deposit + widget.property.utilities + widget.property.additionalFees).toStringAsFixed(0)}", 
+                                      style: const TextStyle(fontWeight: FontWeight.bold, color: primaryBlue, fontSize: 18)
+                                    )
+                                  ]
+                                )
+                              ]
+                            ),
                           ),
                         ],
                       ),

@@ -131,14 +131,35 @@ class _ContractPaymentScreenState extends State<ContractPaymentScreen> {
                 // 3. Rental & Deposit Payment
                 pw.Text("3. RENTAL & DEPOSIT PAYMENT", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
                 pw.Bullet(text: "Monthly Rental: RM ${widget.property.price.toStringAsFixed(2)}"),
-                pw.Bullet(text: "Security Deposit (2 Months): RM ${(widget.property.price * 2).toStringAsFixed(2)}"),
-                pw.Bullet(text: "Utility Deposit: RM 100.00"),
+                pw.Bullet(text: "Security Deposit: RM ${widget.property.deposit.toStringAsFixed(2)}"), // <--- REAL [1, 21]
+                pw.Bullet(text: "Utility Deposit: RM ${widget.property.utilities.toStringAsFixed(2)}"),   // <--- REAL [1, 21]
+                if (widget.property.additionalFees > 0)
+                  pw.Bullet(text: "Additional Fees: RM ${widget.property.additionalFees.toStringAsFixed(2)}"), // <--- REAL [1, 21]
                 pw.SizedBox(height: 16),
 
+// --- UPDATED: RENDS AS CLEAN INDENTED POINT-BY-POINT BULLETS --- [21]
                 pw.Text("4. COVENANTS AND CONDITIONS", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                pw.Text("• The Tenant agrees to pay the rental on the 1st of every calendar month."),
-                pw.Text("• The Tenant shall keep the premises in clean and habitable condition."),
-                pw.Text("• The Tenant shall not perform any illegal activities inside the premises."),
+                pw.SizedBox(height: 6),
+                
+                if (widget.property.customRules.isNotEmpty) ...[
+                  // Split by newline and map to official indented Bullet widgets! [21]
+                  ...widget.property.customRules
+                      .split('\n')
+                      .where((line) => line.trim().isNotEmpty)
+                      .map((line) => pw.Padding(
+                            padding: const pw.EdgeInsets.only(bottom: 6), // Adds a nice gap between points
+                            child: pw.Bullet(
+                              text: line.trim(),
+                              style: const pw.TextStyle(fontSize: 13),
+                            ),
+                          )),
+                ] else ...[
+                  // Fallback to standard rules if empty [21]
+                  pw.Padding(padding: const pw.EdgeInsets.only(bottom: 4), child: pw.Bullet(text: "The Tenant agrees to pay the rental on the 1st of every calendar month.", style: const pw.TextStyle(fontSize: 13))),
+                  pw.Padding(padding: const pw.EdgeInsets.only(bottom: 4), child: pw.Bullet(text: "The Tenant shall keep the premises in clean and habitable condition.", style: const pw.TextStyle(fontSize: 13))),
+                  pw.Padding(padding: const pw.EdgeInsets.only(bottom: 4), child: pw.Bullet(text: "The Tenant shall not perform any illegal activities inside the premises.", style: const pw.TextStyle(fontSize: 13))),
+                ],
+                
                 pw.SizedBox(height: 40),
 
                 pw.Divider(),
@@ -232,10 +253,14 @@ class _ContractPaymentScreenState extends State<ContractPaymentScreen> {
     }
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
-    double deposit = widget.property.price * 2;
-    double total = widget.property.price + deposit + 100;
+    double deposit = widget.property.deposit;
+    double utilities = widget.property.utilities;
+    double addFees = widget.property.additionalFees;
+    double total = widget.property.price + deposit + utilities + addFees;
+
+      debugPrint("DEBUG CONTRACT COST: Price: ${widget.property.price}, Deposit: $deposit, Utilities: $utilities, Total: $total");
 
     return Scaffold(
       backgroundColor: backgroundLight,
@@ -361,9 +386,5 @@ class _ContractPaymentScreenState extends State<ContractPaymentScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildCostRow(String label, String value) {
-    return Padding(padding: const EdgeInsets.only(bottom: 8.0), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[Text(label, style: const TextStyle(color: textGrey, fontSize: 14)), Text(value, style: const TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 14))]));
   }
 }

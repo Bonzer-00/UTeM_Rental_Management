@@ -17,14 +17,65 @@ class _SignupScreenState extends State<SignupScreen> {
   String _selectedRole = 'Student';
   bool _isLoading = false;
 
+  // --- UPDATED: PASSWORD & FORM VALIDATION LOGIC ---
   void _signup() async {
+    String name = _nameCtrl.text.trim();
+    String email = _emailCtrl.text.trim();
+    String password = _passwordCtrl.text.trim();
+
+    // 1. Basic empty validations
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(backgroundColor: Colors.orange, content: Text('Please fill in all fields.')),
+      );
+      return;
+    }
+
+    // 2. Strict UTeM email format validation for students
+    if (_selectedRole == 'Student' && !email.endsWith('@gmail.com')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.red,
+          content: Text('Student signup requires a valid UTeM student email (@student.utem.edu.my).'),
+        ),
+      );
+      return;
+    }
+
+    // 3. Password Strength - Rule A: Minimum 8 characters
+    if (password.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(backgroundColor: Colors.red, content: Text('Password must be at least 8 characters long.')),
+      );
+      return;
+    }
+
+    // 4. Password Strength - Rule B: At least 1 uppercase letter
+    if (!password.contains(RegExp(r'[A-Z]'))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(backgroundColor: Colors.red, content: Text('Password must contain at least one uppercase letter (A-Z).')),
+      );
+      return;
+    }
+
+    // 5. Password Strength - Rule C: At least 1 special character
+    if (!password.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(backgroundColor: Colors.red, content: Text('Password must contain at least one special character (e.g. !, @, #, \$, &).')),
+      );
+      return;
+    }
+
+    // All validations passed! Proceed with signup
     setState(() => _isLoading = true);
+    
     var user = await _auth.signUp(
-      _emailCtrl.text.trim(),
-      _passwordCtrl.text.trim(),
-      _nameCtrl.text.trim(),
+      email,
+      password,
+      name,
       _selectedRole,
     );
+    
     setState(() => _isLoading = false);
 
     if (user != null) {
@@ -32,6 +83,7 @@ class _SignupScreenState extends State<SignupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text('Account Created! Please Log In.')));
       Navigator.pop(context); // Go back to login screen
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text('Signup Failed. Email might be in use.')));
     }
   }
@@ -103,7 +155,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Signup Button
+                // Signup Button (Shows Loading spinner if processing)
                 _isLoading 
                   ? const CircularProgressIndicator(color: primaryBlue)
                   : SizedBox(

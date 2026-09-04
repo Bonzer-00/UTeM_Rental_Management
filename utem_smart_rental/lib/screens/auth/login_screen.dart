@@ -74,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 30),
 
                 // Inputs
-                _buildInputLabel("UTeM Email / Username"),
+                _buildInputLabel("UTeM Email"),
                 _buildTextField(_emailCtrl, "student@utem.edu.my", false),
                 const SizedBox(height: 16),
                 

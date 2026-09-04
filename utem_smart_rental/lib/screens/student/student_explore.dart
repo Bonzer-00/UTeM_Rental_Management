@@ -9,6 +9,7 @@ import '../../utils/constants.dart';
 import '../shared/chat_screen.dart'; 
 import 'property_details_screen.dart';
 
+
 class StudentExplore extends StatefulWidget {
   const StudentExplore({super.key});
 
@@ -22,10 +23,13 @@ class _StudentExploreState extends State<StudentExplore> {
 
   // Search & Filter States
   String _searchQuery = "";
-  double _maxDistance = 15.0; 
   double _maxPrice = 2000.0;
   String _sortBy = 'Price: Low to High';
   bool _isSearchingVacancies = false;
+
+  // --- 1. NEW: DUAL CAMPUS DISTANCE FILTER VARIABLES ---
+  double _maxDistanceInduk = 15.0; // Max distance to Main Campus (Durian Tunggal)
+  double _maxDistanceTekno = 15.0; // Max distance to Technology Campus (Ayer Keroh)
 
   late Stream<List<Property>> _propertiesStream;
 
@@ -35,7 +39,7 @@ class _StudentExploreState extends State<StudentExplore> {
     _propertiesStream = _propertyService.getAllProperties();
   }
 
-  // --- NEW: Helper to fetch BOTH the Property Image & Student's Full Name --- [14, 21]
+  // Fetch Property Image & Student Full Name for Roommate Finder [14, 21]
   Future<Map<String, dynamic>> _getVacancyCardDetails(String propertyId, String studentId) async {
     String imageUrl = "";
     String fullName = "Student";
@@ -75,10 +79,7 @@ class _StudentExploreState extends State<StudentExplore> {
             TextField(
               controller: slotsCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Slots Left",
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: "Slots Left", border: OutlineInputBorder()),
             ),
           ],
         ),
@@ -91,7 +92,7 @@ class _StudentExploreState extends State<StudentExplore> {
               Navigator.pop(context); // Close dialog
 
               if (newSlots <= 0) {
-                // --- AUTO-HIDE / DELETE IF FULL (0 SLOTS LEFT) ---
+                // --- AUTO-HIDE / DELETE IF FULL (0 SLOTS LEFT) --- [23]
                 await _vacancyService.deleteVacancy(post.id);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -99,7 +100,7 @@ class _StudentExploreState extends State<StudentExplore> {
                   );
                 }
               } else {
-                // Update Firestore normally
+                // Update Firestore normally [23]
                 await FirebaseFirestore.instance.collection('vacancies').doc(post.id).update({
                   'vacantSlots': newSlots,
                 });
@@ -141,7 +142,7 @@ class _StudentExploreState extends State<StudentExplore> {
     );
   }
 
-  // Toggle Segment Bar UI [15]
+  // Toggle Segment Bar UI (Entire Houses vs Roommate Finder) [15]
   Widget _buildToggleBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: defaultPadding, vertical: 8),
@@ -191,7 +192,7 @@ class _StudentExploreState extends State<StudentExplore> {
     );
   }
 
-  // --- FILTER BOTTOM SHEET ---
+  // --- UPDATED: FILTER BOTTOM SHEET WITH TWO DISTANCE SLIDERS --- [23]
   void _showFilterBottomSheet() {
     FocusScope.of(context).unfocus();
     showModalBottomSheet(
@@ -207,23 +208,49 @@ class _StudentExploreState extends State<StudentExplore> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children:[
                   const Text("Filter Properties", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
+                  // Reset Button (Resets both sliders!)
                   TextButton(
                     onPressed: () {
-                      setModalState(() { _maxPrice = 2000.0; _maxDistance = 15.0; });
-                      setState(() { _maxPrice = 2000.0; _maxDistance = 15.0; });
+                      setModalState(() { 
+                        _maxPrice = 2000.0; 
+                        _maxDistanceInduk = 15.0; // Reset [10]
+                        _maxDistanceTekno = 15.0; // Reset [10]
+                      });
+                      setState(() { 
+                        _maxPrice = 2000.0; 
+                        _maxDistanceInduk = 15.0; 
+                        _maxDistanceTekno = 15.0; 
+                      });
                     },
                     child: const Text("Reset", style: TextStyle(color: primaryBlue, fontWeight: FontWeight.bold)),
                   )
                 ],
               ),
               const SizedBox(height: 16),
+              
+              // 1. Rent Price Slider
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[const Text("Max Rent:", style: TextStyle(fontWeight: FontWeight.bold, color: textDark)), Text("RM ${_maxPrice.toStringAsFixed(0)}", style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold))]),
               Slider(value: _maxPrice, min: 200, max: 2000, divisions: 18, activeColor: primaryBlue, onChanged: (val) { setModalState(() => _maxPrice = val); setState(() => _maxPrice = val); }),
               const SizedBox(height: 16),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[const Text("Max Distance:", style: TextStyle(fontWeight: FontWeight.bold, color: textDark)), Text("${_maxDistance.toStringAsFixed(1)} km", style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold))]),
-              Slider(value: _maxDistance, min: 1, max: 30, divisions: 29, activeColor: primaryBlue, onChanged: (val) { setModalState(() => _maxDistance = val); setState(() => _maxDistance = val); }),
+
+              // 2. Kampus Induk Distance Slider (New)
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[const Text("Max Dist to Induk:", style: TextStyle(fontWeight: FontWeight.bold, color: textDark)), Text("${_maxDistanceInduk.toStringAsFixed(1)} km", style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold))]),
+              Slider(value: _maxDistanceInduk, min: 1, max: 30, divisions: 29, activeColor: primaryBlue, onChanged: (val) { setModalState(() => _maxDistanceInduk = val); setState(() => _maxDistanceInduk = val); }),
+              const SizedBox(height: 16),
+
+              // 3. Kampus Teknologi (Tekno) Distance Slider (New)
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[const Text("Max Dist to Tekno:", style: TextStyle(fontWeight: FontWeight.bold, color: textDark)), Text("${_maxDistanceTekno.toStringAsFixed(1)} km", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold))]),
+              Slider(value: _maxDistanceTekno, min: 1, max: 30, divisions: 29, activeColor: Colors.orange, onChanged: (val) { setModalState(() => _maxDistanceTekno = val); setState(() => _maxDistanceTekno = val); }),
               const SizedBox(height: 30),
-              SizedBox(width: double.infinity, height: 50, child: ElevatedButton(onPressed: () { FocusScope.of(context).unfocus(); Navigator.pop(context); }, style: ElevatedButton.styleFrom(backgroundColor: primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), child: const Text("Apply Filters", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))))
+
+              SizedBox(
+                width: double.infinity, height: 50, 
+                child: ElevatedButton(
+                  onPressed: () { FocusScope.of(context).unfocus(); Navigator.pop(context); }, 
+                  style: ElevatedButton.styleFrom(backgroundColor: primaryBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), 
+                  child: const Text("Apply Filters", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))
+                )
+              )
             ],
           ),
         ),
@@ -251,7 +278,7 @@ class _StudentExploreState extends State<StudentExplore> {
         if (filteredPosts.isEmpty) {
           return Center(
             child: Column(
-             mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
               children:[
                 Icon(Icons.group_add_outlined, size: 70, color: Colors.grey.shade300),
                 const SizedBox(height: 12),
@@ -272,14 +299,14 @@ class _StudentExploreState extends State<StudentExplore> {
     );
   }
 
-  // --- STUDENT VACANCY CARD WITH INLINE EDIT SLOTS --- [1, 14, 17, 21, 23]
+// --- DYNAMIC HORIZONTAL VACANCY CARD (Pulls Real Image & Full Name) --- [1, 14, 17, 21, 23]
   Widget _buildVacancyCard(VacancyPost post, String currentUserId) {
     bool isMyPost = post.studentId == currentUserId;
     return FutureBuilder<Map<String, dynamic>>(
-      future: _getVacancyCardDetails(post.propertyId, post.studentId),
+      future: _getVacancyCardDetails(post.propertyId, post.studentId), // Unified lookup [14, 21]
       builder: (context, snapshot) {
         String imageUrl = snapshot.data?['imageUrl'] ?? "";
-        String fullName = snapshot.data?['fullName'] ?? "Loading...";
+        String fullName = snapshot.data?['fullName'] ?? "Loading..."; // Real Full Name [21]
 
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
@@ -292,7 +319,7 @@ class _StudentExploreState extends State<StudentExplore> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children:[
-                // Left side: Real Property Image! [1, 14]
+                // Left side: Real Property Thumbnail [1, 14]
                 ClipRRect(
                   borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
                   child: imageUrl.isNotEmpty
@@ -307,23 +334,24 @@ class _StudentExploreState extends State<StudentExplore> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children:[
+                        // --- ROW 1: TITLE & ACTION BUTTONS --- [23]
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children:[
-                            Expanded(child: Text(post.propertyTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: textDark), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                              child: Text("${post.vacantSlots} Slots Left", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 9)),
+                            Expanded(
+                              child: Text(
+                                post.propertyTitle, 
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: textDark),
+                                maxLines: 1, 
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            
-                            // Edit & Delete options for the Owner of the post
                             if (isMyPost) ...[
                               const SizedBox(width: 8),
                               IconButton(
                                 padding: EdgeInsets.zero, constraints: const BoxConstraints(),
                                 icon: const Icon(Icons.edit_outlined, color: primaryBlue, size: 18),
-                                onPressed: () => _showEditSlotsDialog(context, post), // <-- NEW EDIT BUTTON [23]
+                                onPressed: () => _showEditSlotsDialog(context, post), 
                               ),
                               const SizedBox(width: 8),
                               IconButton(
@@ -334,15 +362,46 @@ class _StudentExploreState extends State<StudentExplore> {
                             ],
                           ],
                         ),
-                        const SizedBox(height: 4),
-                        Text("Posted by: $fullName ${isMyPost ? '(You)' : ''}", style: const TextStyle(color: textGrey, fontSize: 11, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 4),
-                        Text(post.description, style: const TextStyle(color: textGrey, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
-                        const Spacer(),
+                        const SizedBox(height: 6),
+                        
+                        // --- ROW 2: POSTER NAME & ORANGE SLOTS BADGE --- [21, 23]
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                "Posted by: $fullName ${isMyPost ? '(You)' : ''}", // Uses 'fullName' directly! [21]
+                                style: const TextStyle(color: textGrey, fontSize: 11, fontWeight: FontWeight.bold),
+                                maxLines: 1, 
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                              child: Text("${post.vacantSlots} Slots Left", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 9)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        
+                        // Description text
+                        Text(
+                          post.description, 
+                          style: const TextStyle(color: textGrey, fontSize: 12),
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                        ),
+                        
+                        const Spacer(), // Pushes rent and button to the bottom
+                        
+                        // Row 3: Price & Chat Button
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children:[
-                            Text("RM ${post.price.toStringAsFixed(0)}/mo", style: const TextStyle(color: primaryBlue, fontSize: 14, fontWeight: FontWeight.bold)),
+                            Text(
+                              "RM ${post.price.toStringAsFixed(0)}/mo", 
+                              style: const TextStyle(color: primaryBlue, fontSize: 14, fontWeight: FontWeight.bold),
+                            ),
                             if (!isMyPost)
                               SizedBox(
                                 height: 30,
@@ -368,7 +427,7 @@ class _StudentExploreState extends State<StudentExplore> {
     );
   }
 
-  // HORIZONTAL PROPERTY CARD [1]
+  // --- HORIZONTAL PROPERTY CARD --- [1]
   Widget _buildPropertyCard(Property prop) {
     return GestureDetector(
       onTap: () {
@@ -382,6 +441,7 @@ class _StudentExploreState extends State<StudentExplore> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children:[
+              // Left Photo [1]
               ClipRRect(
                 borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
                 child: Image.network(
@@ -390,6 +450,8 @@ class _StudentExploreState extends State<StudentExplore> {
                   errorBuilder: (context, error, stackTrace) => Container(width: 130, color: Colors.grey[300], child: const Icon(Icons.home, color: Colors.white, size: 40)),
                 ),
               ),
+              
+              // Right Details
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
@@ -463,17 +525,29 @@ class _StudentExploreState extends State<StudentExplore> {
                     if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: primaryBlue));
                     if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text('No properties available.', style: TextStyle(color: textGrey)));
 
+                    // Apply Filters
                     var properties = snapshot.data!.where((p) {
                       bool matchesSearch = p.location.toLowerCase().contains(_searchQuery) || p.title.toLowerCase().contains(_searchQuery) || p.description.toLowerCase().contains(_searchQuery) || p.facilities.any((f) => f.toLowerCase().contains(_searchQuery));
-                      bool matchesDistance = p.distanceTekno <= _maxDistance && p.distanceInduk <= _maxDistance;
+                      
+                      // --- UPDATED DUAL DISTANCE CHECK --- [10]
+                      bool matchesDistance = p.distanceInduk <= _maxDistanceInduk && p.distanceTekno <= _maxDistanceTekno;
                       bool matchesPrice = p.price <= _maxPrice;
+                      
                       bool hasVacancy = p.currentTenants < p.capacity; 
                       return matchesSearch && matchesDistance && matchesPrice && hasVacancy;
                     }).toList();
 
-                    if (_sortBy == 'Price: Low to High') properties.sort((a, b) => a.price.compareTo(b.price));
-                    else if (_sortBy == 'Price: High to Low') properties.sort((a, b) => b.price.compareTo(a.price));
-                    else if (_sortBy == 'Nearest to UTeM') properties.sort((a, b) => a.distanceTekno.compareTo(b.distanceTekno));
+                    // Apply Sorting
+                   // --- UPDATED: DUAL CAMPUS SORTING ALGORITHMS ---
+                      if (_sortBy == 'Price: Low to High') {
+                        properties.sort((a, b) => a.price.compareTo(b.price));
+                      } else if (_sortBy == 'Price: High to Low') {
+                        properties.sort((a, b) => b.price.compareTo(a.price));
+                      } else if (_sortBy == 'Nearest to UTeM Induk') { // <--- UPDATED
+                        properties.sort((a, b) => a.distanceInduk.compareTo(b.distanceInduk));
+                      } else if (_sortBy == 'Nearest to UTeM Tekno') { // <--- NEW
+                        properties.sort((a, b) => a.distanceTekno.compareTo(b.distanceTekno));
+                      }
 
                     return Column(
                       children:[
@@ -497,7 +571,8 @@ class _StudentExploreState extends State<StudentExplore> {
                                 itemBuilder: (context) =>[
                                   const PopupMenuItem(value: 'Price: Low to High', child: Text('Price: Low to High', style: TextStyle(fontSize: 13))),
                                   const PopupMenuItem(value: 'Price: High to Low', child: Text('Price: High to Low', style: TextStyle(fontSize: 13))),
-                                  const PopupMenuItem(value: 'Nearest to UTeM', child: Text('Nearest to UTeM', style: TextStyle(fontSize: 13))),
+                                  const PopupMenuItem(value: 'Nearest to UTeM Induk', child: Text('Nearest to UTeM Induk', style: TextStyle(fontSize: 13))),
+                                  const PopupMenuItem(value: 'Nearest to UTeM Tekno', child: Text('Nearest to UTeM Tekno', style: TextStyle(fontSize: 13))),
                                 ],
                               )
                             ],

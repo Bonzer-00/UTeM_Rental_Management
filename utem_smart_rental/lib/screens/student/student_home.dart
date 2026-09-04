@@ -76,8 +76,8 @@ class _StudentHomeState extends State<StudentHome> {
 
   // Active Rental Portal (My Home, Rent Due, Contract, Maintenance) [16, 21]
   Widget _buildActiveRentalPortal(Booking booking, Property property) {
-    double deposit = property.price * 2;
-    double total = property.price + deposit + 100;
+    //double deposit = property.price * 2;
+    //double total = property.price + deposit + 100;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(defaultPadding),

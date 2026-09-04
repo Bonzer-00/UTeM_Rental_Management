@@ -25,12 +25,18 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   late TextEditingController _titleCtrl;
   late TextEditingController _descCtrl;
   late TextEditingController _priceCtrl;
+  late TextEditingController _depositCtrl;    // <--- NEW [1]
+  late TextEditingController _utilitiesCtrl;  // <--- NEW [1]
+  late TextEditingController _addFeesCtrl;    // <--- NEW [1]
   late TextEditingController _locationCtrl;
-  late TextEditingController _distanceIndukCtrl; // <--- NEW
-  late TextEditingController _distanceTeknoCtrl; // <--- NEW
+  late TextEditingController _distanceIndukCtrl; 
+  late TextEditingController _distanceTeknoCtrl; 
   late TextEditingController _capacityCtrl;
   late TextEditingController _currentTenantsCtrl;
   late TextEditingController _facilitiesCtrl;
+  late TextEditingController _rulesCtrl; // <--- NEW
+  double _latitude = 2.3083;  // Default to UTeM
+  double _longitude = 102.3177; // Default to UTeM
 
   final ImagePicker _picker = ImagePicker();
   List<XFile> _selectedImages = [];
@@ -44,12 +50,19 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     _titleCtrl = TextEditingController(text: widget.property?.title ?? '');
     _descCtrl = TextEditingController(text: widget.property?.description ?? '');
     _priceCtrl = TextEditingController(text: widget.property?.price.toString() ?? '');
+    
+    // Initialize new fields [1]
+    _depositCtrl = TextEditingController(text: widget.property?.deposit.toString() ?? ''); 
+    _utilitiesCtrl = TextEditingController(text: widget.property?.utilities.toString() ?? '');
+    _addFeesCtrl = TextEditingController(text: widget.property?.additionalFees.toString() ?? '0');
+    
     _locationCtrl = TextEditingController(text: widget.property?.location ?? '');
-    _distanceIndukCtrl = TextEditingController(text: widget.property?.distanceInduk.toString() ?? ''); // <--- NEW
-    _distanceTeknoCtrl = TextEditingController(text: widget.property?.distanceTekno.toString() ?? ''); // <--- NEW
+    _distanceIndukCtrl = TextEditingController(text: widget.property?.distanceInduk.toString() ?? ''); 
+    _distanceTeknoCtrl = TextEditingController(text: widget.property?.distanceTekno.toString() ?? ''); 
     _capacityCtrl = TextEditingController(text: widget.property?.capacity.toString() ?? '');
     _currentTenantsCtrl = TextEditingController(text: widget.property?.currentTenants.toString() ?? '0');
     _facilitiesCtrl = TextEditingController(text: widget.property?.facilities.join(', ') ?? '');
+    _rulesCtrl = TextEditingController(text: widget.property?.customRules ?? ''); // <--- NEW
     
     if (widget.property != null) {
       _existingImages = List.from(widget.property!.imageUrls);
@@ -58,13 +71,11 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
 
   Future<void> _openMapPicker() async {
     FocusScope.of(context).unfocus(); 
-    
-    // --- UPDATED: Pass the typed text directly to the Map! --- [12]
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => MapPickerScreen(
-          initialAddress: _locationCtrl.text.trim(), // Sent here [12]
+          initialAddress: _locationCtrl.text.trim(), 
         ),
       ),
     );
@@ -74,11 +85,12 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         _locationCtrl.text = result['address'] ?? '';
         _distanceIndukCtrl.text = result['distInduk'] ?? '';
         _distanceTeknoCtrl.text = result['distTekno'] ?? '';
+        _latitude = double.parse(result['latitude'] ?? '2.3083');
+        _longitude = double.parse(result['longitude'] ?? '102.3177');
       });
     }
   }
 
-  // --- UPDATED: Calculate both distances on typing address ---
   Future<void> _calculateDistance() async {
     if (_locationCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please type an address first!")));
@@ -92,12 +104,15 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         double lat = locations.first.latitude;
         double lng = locations.first.longitude;
 
-        double distInduk = Geolocator.distanceBetween(2.3138, 102.3212, lat, lng) / 1000;
-        double distTekno = Geolocator.distanceBetween(2.2764, 102.2748, lat, lng) / 1000;
+        double distInduk = Geolocator.distanceBetween(2.3083, 102.3177, lat, lng) / 1000;
+        double distTekno = Geolocator.distanceBetween(2.2782, 102.2750, lat, lng) / 1000;
 
         setState(() {
           _distanceIndukCtrl.text = distInduk.toStringAsFixed(1);
           _distanceTeknoCtrl.text = distTekno.toStringAsFixed(1);
+
+           _latitude = lat;
+          _longitude = lng;
         });
         
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text("Distances calculated!")));
@@ -149,13 +164,22 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
           title: _titleCtrl.text.trim(),
           description: _descCtrl.text.trim(),
           price: double.parse(_priceCtrl.text),
+          
+          // Save new customizable values [1]
+          deposit: double.parse(_depositCtrl.text),          
+          utilities: double.parse(_utilitiesCtrl.text),      
+          additionalFees: double.parse(_addFeesCtrl.text),    
+          
           location: _locationCtrl.text.trim(),
-          distanceInduk: double.parse(_distanceIndukCtrl.text), // <--- NEW
-          distanceTekno: double.parse(_distanceTeknoCtrl.text), // <--- NEW
+          distanceInduk: double.parse(_distanceIndukCtrl.text), 
+          distanceTekno: double.parse(_distanceTeknoCtrl.text), 
+          latitude: _latitude,
+          longitude: _longitude,
           capacity: int.parse(_capacityCtrl.text),
           currentTenants: int.parse(_currentTenantsCtrl.text),
           facilities: facilitiesList,
           imageUrls: finalImageUrls,
+          customRules: _rulesCtrl.text.trim(), // <--- NEW [1]
         );
 
         if (widget.property == null) {
@@ -197,7 +221,25 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                 const Text("Basic Info", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark)),
                 const SizedBox(height: 16),
                 _buildModernTextField(_titleCtrl, "Property Title", "e.g. Single Room at Taman Tasik", false),
-                _buildModernTextField(_priceCtrl, "Monthly Rent (RM)", "e.g. 350", true),
+                
+                // --- NEW: FINANCIAL GRID --- [1]
+                const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider()),
+                const Text("Financial Requirements", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark)),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: _buildModernTextField(_priceCtrl, "Monthly Rent (RM)", "350", true)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildModernTextField(_depositCtrl, "Deposit (RM)", "700", true)),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(child: _buildModernTextField(_utilitiesCtrl, "Utility Deposit (RM)", "100", true)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildModernTextField(_addFeesCtrl, "Additional Fees (RM)", "0", true)),
+                  ],
+                ),
                 
                 const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider()),
                 
@@ -226,7 +268,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                       ),
                 ),
                 
-                // Show both distance fields side-by-side (auto-calculated)
                 Row(
                   children: [
                     Expanded(child: _buildModernTextField(_distanceIndukCtrl, "Dist to Induk (km)", "Auto-filled...", true)),
@@ -241,22 +282,47 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                 Row(children: [Expanded(child: _buildModernTextField(_capacityCtrl, "Total Capacity", "e.g. 4", true)), const SizedBox(width: 16), Expanded(child: _buildModernTextField(_currentTenantsCtrl, "Current Tenants", "e.g. 2", true))]),
                 _buildModernTextField(_facilitiesCtrl, "Facilities (comma separated)", "WiFi, Aircond, Fridge", false),
                 _buildModernTextField(_descCtrl, "Description", "Tell students about the house...", false, maxLines: 3),
+                _buildModernTextField(_rulesCtrl, "Custom Lease Rules & Agreement Clauses (Optional)", 
+                  "e.g.\n1. Rent must be paid by the 1st of every month.\n2. No smoking inside the premises.\n3. Keep the common area clean.", false, maxLines: 4
+                ),
                 
                 const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider()),
                 const Text("Property Photos", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark)),
                 const SizedBox(height: 10),
                 
                 if (_existingImages.isNotEmpty) ...[
-                  const Text("Currently Uploaded:", style: TextStyle(color: textGrey, fontSize: 12)),
+                  const Text("Currently Uploaded (Tap 'X' to remove):", style: TextStyle(color: textGrey, fontSize: 12)),
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 80,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       itemCount: _existingImages.length,
-                      itemBuilder: (context, index) => Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(_existingImages[index], width: 80, height: 80, fit: BoxFit.cover)),
+                      itemBuilder: (context, index) => Stack(
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(_existingImages[index], width: 80, height: 80, fit: BoxFit.cover),
+                            ),
+                          ),
+                          // Red 'X' Button to delete existing uploaded photo!
+                          Positioned(
+                            top: 0, right: 8,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _existingImages.removeAt(index); // Removes the photo URL locally [23]
+                                });
+                              },
+                              child: Container(
+                                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                child: const Icon(Icons.close, color: Colors.white, size: 18),
+                              ),
+                            ),
+                          )
+                        ],
                       ),
                     ),
                   ),
@@ -317,16 +383,23 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     );
   }
 
-  Widget _buildModernTextField(TextEditingController controller, String label, String hint, bool isNumber, {int maxLines = 1, Widget? suffixIcon}) {
+Widget _buildModernTextField(TextEditingController controller, String label, String hint, bool isNumber, {int maxLines = 1, Widget? suffixIcon}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children:[
           Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: textDark, fontSize: 13)),
           const SizedBox(height: 6),
           TextFormField(
-            controller: controller, keyboardType: isNumber ? TextInputType.number : TextInputType.text, maxLines: maxLines,
+            controller: controller, 
+            
+            // --- THE FIX: Unlocks the Enter key on mobile soft keyboards! --- [1]
+            keyboardType: isNumber 
+                ? TextInputType.number 
+                : (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
+                
+            maxLines: maxLines,
             validator: (label.contains("Current Tenants")) ? null : (v) => v!.isEmpty ? 'Required' : null,
             decoration: InputDecoration(
               hintText: hint, hintStyle: const TextStyle(color: Colors.grey, fontSize: 13), filled: true, fillColor: const Color(0xFFF8FAFC),
