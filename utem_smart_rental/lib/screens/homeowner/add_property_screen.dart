@@ -9,6 +9,7 @@ import '../../models/property_model.dart';
 import '../../services/property_service.dart';
 import '../../utils/constants.dart';
 import 'map_picker_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AddPropertyScreen extends StatefulWidget {
   final Property? property;
@@ -43,6 +44,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   List<String> _existingImages = [];
   bool _isSaving = false;
   bool _isCalculating = false;
+  bool _isRulesFieldDisabled = false;
 
   @override
   void initState() {
@@ -62,10 +64,28 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     _capacityCtrl = TextEditingController(text: widget.property?.capacity.toString() ?? '');
     _currentTenantsCtrl = TextEditingController(text: widget.property?.currentTenants.toString() ?? '0');
     _facilitiesCtrl = TextEditingController(text: widget.property?.facilities.join(', ') ?? '');
-    _rulesCtrl = TextEditingController(text: widget.property?.customRules ?? ''); // <--- NEW
+    _rulesCtrl = TextEditingController(text: widget.property?.customRules ?? ''); 
+    _checkIfContractSigned(); // Check if a student has signed a contract for this property [21]
     
     if (widget.property != null) {
       _existingImages = List.from(widget.property!.imageUrls);
+    }
+  }
+
+  // --- NEW: Checks if a student has already signed a contract for this property --- [21]
+  void _checkIfContractSigned() async {
+    if (widget.property != null) {
+      var query = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('propertyId', isEqualTo: widget.property!.id)
+          .where('status', isEqualTo: 'signed') // Check for active lease [21]
+          .get();
+
+      if (query.docs.isNotEmpty && mounted) {
+        setState(() {
+          _isRulesFieldDisabled = true; // Lock the rules! [21]
+        });
+      }
     }
   }
 
@@ -282,8 +302,13 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                 Row(children: [Expanded(child: _buildModernTextField(_capacityCtrl, "Total Capacity", "e.g. 4", true)), const SizedBox(width: 16), Expanded(child: _buildModernTextField(_currentTenantsCtrl, "Current Tenants", "e.g. 2", true))]),
                 _buildModernTextField(_facilitiesCtrl, "Facilities (comma separated)", "WiFi, Aircond, Fridge", false),
                 _buildModernTextField(_descCtrl, "Description", "Tell students about the house...", false, maxLines: 3),
-                _buildModernTextField(_rulesCtrl, "Custom Lease Rules & Agreement Clauses (Optional)", 
-                  "e.g.\n1. Rent must be paid by the 1st of every month.\n2. No smoking inside the premises.\n3. Keep the common area clean.", false, maxLines: 4
+                _buildModernTextField( _rulesCtrl, _isRulesFieldDisabled 
+                      ? "Custom Lease Rules (Locked - Contract Signed 🔒)" // Lock message [21]
+                      : "Custom Lease Rules & Agreement Clauses (Optional)", 
+                  "e.g.\n1. Rent must be paid by the 1st of every month...", 
+                  false, 
+                  maxLines: 4,
+                  enabled: !_isRulesFieldDisabled, // Locks input if true! [21]
                 ),
                 
                 const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider()),
@@ -383,7 +408,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     );
   }
 
-Widget _buildModernTextField(TextEditingController controller, String label, String hint, bool isNumber, {int maxLines = 1, Widget? suffixIcon}) {
+Widget _buildModernTextField(TextEditingController controller, String label, String hint, bool isNumber, {int maxLines = 1, Widget? suffixIcon, bool enabled = true}) { // <--- ADDED 'bool enabled = true' [1]
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Column(
@@ -393,16 +418,16 @@ Widget _buildModernTextField(TextEditingController controller, String label, Str
           const SizedBox(height: 6),
           TextFormField(
             controller: controller, 
-            
-            // --- THE FIX: Unlocks the Enter key on mobile soft keyboards! --- [1]
+            enabled: enabled, // <--- THE FIX: Dynamically locks/unlocks the input! [1]
             keyboardType: isNumber 
                 ? TextInputType.number 
                 : (maxLines > 1 ? TextInputType.multiline : TextInputType.text),
-                
             maxLines: maxLines,
-            validator: (label.contains("Current Tenants")) ? null : (v) => v!.isEmpty ? 'Required' : null,
+            validator: (label.contains("Current Tenants") || label.contains("Additional")) ? null : (v) => v!.isEmpty ? 'Required' : null,
             decoration: InputDecoration(
-              hintText: hint, hintStyle: const TextStyle(color: Colors.grey, fontSize: 13), filled: true, fillColor: const Color(0xFFF8FAFC),
+              hintText: hint, hintStyle: const TextStyle(color: Colors.grey, fontSize: 13), 
+              filled: true, 
+              fillColor: enabled ? const Color(0xFFF8FAFC) : Colors.grey.shade100, // Shades grey if disabled!
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
